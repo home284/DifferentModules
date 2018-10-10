@@ -4,6 +4,8 @@ from datetime import datetime
 import re
 import pymysql
 
+host = 'https://www.eliteprospects.com'
+
 def create_connection(host, db, user, password, port=3306):
     myscore_connection = pymysql.connect(host=host, db=db, user=user, password=password, port=port)
     print('Connection Successfull')
@@ -64,8 +66,8 @@ class EPPlayer:
         self.current_team_link = bs.find('div', {'class': 'pd-40254'}).a.attrs['href']
         name = bs.h1.text.strip()
         if name:
-            if re.match(r'a\.k\.a\.', name):
-                self.name = re.search(r'(.+?)\s*a\.k\.a', name, re.DOTALL+re.MULTILINE).group(1)
+            if re.match(r'.*a\.k\.a\.', name, re.DOTALL+re.MULTILINE):
+                self.name = re.search(r'(.+?)\s*a\.k\.a\..*', name, re.DOTALL+re.MULTILINE).group(1)
                 self.aka = re.search(r'a\.k\.a\.\s*(.+)', name).group(1).replace('"', '')
             else:
                 self.name = name
@@ -99,6 +101,10 @@ class EPPlayer:
             self.weight = re.search(r'(\d+) kg', bs.find('div', text=re.compile(r'Weight')).findNext().text.strip()).group(1)
         if re.match(r'(\d+) cm', bs.find('div', text=re.compile(r'Height')).findNext().text.strip()):
             self.height = re.search(r'(\d+) cm', bs.find('div', text=re.compile(r'Height')).findNext().text.strip()).group(1)
+        # Relations
+        rel = bs.find('div', {'class': 'dtl-txt'})
+        for r in rel.findAll(): True
+        self.relations = rel
         # Awards
         #self.parseAwards(bs.find('section', {'class': 'season-wizard'}))
         # Statistics
@@ -117,10 +123,10 @@ class EPPlayer:
     def writeToDB(self, con):
         cur = con.cursor()
         query = """
-                    replace into epplayer (id, code, url, name, aka, birthday, bornplace, age, caphit, contract_until, shoots, height, weight, positions, nation)
-                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    replace into epplayer (id, code, url, name, aka, birthday, bornplace, age, caphit, contract_until, shoots, height, weight, positions, nation, views)
+                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-        cur.execute(query, (self.id, self.code, self.url, self.name, self.aka, self.birthday, self.born_place, self.age, self.caphit, self.contract_until, self.shoots, self.height, self.weight, '/'.join(self.position), self.nation[0]))
+        cur.execute(query, (self.id, self.code, self.url, self.name, self.aka, self.birthday, self.born_place, self.age, self.caphit, self.contract_until, self.shoots, self.height, self.weight, '/'.join(self.position), self.nation[0], self.views))
         con.commit()
 
 def getAllDrafts():
@@ -183,6 +189,27 @@ def getSquad(url, squad_type='roster'):
     for link in links: result.append(link['href'])
     return result
 
+def getNations(con=None):
+    nations = []
+    query = """
+                insert into country (id, code, url, name)
+                value (%s, %s, %s, %s)
+            """
+    if con: cur = con.cursor()
+    bs = downloadPage(host+'/nations')
+    block = bs.find('div', {'class': 'inner-rtl'})
+    for nation in block.findAll('li'):
+        nations.append(nation.a.attrs['href'])
+        if not con: break
+        cur.execute(query, (
+            re.search(r'flags_s/(\d+)\.png', nation.i.img.attrs['src']).group(1), # id
+            re.search(r'nation/(.+)$', nation.a.attrs['href']).group(1), # code
+            nation.a.attrs['href'], # url
+            nation.a.text.strip()
+        ))
+    if con is not None:
+        con.commit()
+    return nations
 
 #url = 'https://www.eliteprospects.com/player/265684/adam-boqvist'
 #adam_boqvist = EPPlayer(url)
