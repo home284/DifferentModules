@@ -1,0 +1,77 @@
+select * from matches;
+
+drop table epplayer;
+CREATE TABLE `epplayer` (
+id int(11) NOT NULL,
+code varchar(100) NOT NULL,
+url varchar(255) NOT NULL,
+name varchar(150) DEFAULT NULL,
+aka varchar(45) DEFAULT NULL,
+birthday date DEFAULT NULL,
+bornplace varchar(150) DEFAULT NULL,
+age smallint(6) DEFAULT NULL,
+caphit int(11) DEFAULT NULL,
+contract_until varchar(10) DEFAULT NULL,
+shoots char(1) DEFAULT NULL,
+height smallint(6) DEFAULT NULL,
+weight smallint(6) DEFAULT NULL,
+positions varchar(10) DEFAULT NULL,
+nation varchar(25) DEFAULT NULL,
+views int,
+PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+select * from epplayer;
+
+select
+name, age, views
+from epplayer
+order by views DESC;
+
+drop table country;
+create table country (
+id int,
+code varchar(25),
+url varchar(255),
+name varchar(100),
+primary key (id)
+);
+select * from country;
+
+drop table league;
+create table league (
+	url varchar(255),
+    code varchar(50),
+	category varchar(30),
+    type varchar(25),
+    kind varchar(25),
+    name varchar(50),
+    countryid smallint(2),
+    primary key (code)
+);
+select * from league;
+
+drop table seasonresults;
+truncate table seasonresults;
+create table seasonresults (
+league varchar(50),
+season varchar(50),
+squad_link varchar(255),
+team_id int,
+team_code varchar(100),
+team_link varchar(255),
+team_name varchar(150),
+gp smallint(2),
+w smallint(2),
+t smallint(2),
+l smallint(2),
+otw smallint(2),
+otl smallint(2),
+gf smallint(2),
+ga smallint(2),
+gd smallint(2),
+tp smallint(2),
+postseason varchar(100),
+index league_season (league, season)
+);
+select * from seasonresults;
