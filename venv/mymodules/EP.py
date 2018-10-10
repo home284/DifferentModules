@@ -211,6 +211,78 @@ def getNations(con=None):
         con.commit()
     return nations
 
+def getLeagues(con=None):
+    result = []
+    if con: cur = con.cursor()
+    query = """
+                replace into league (url, code, category, type, kind, name, countryid)
+                values (%s, %s, %s, %s, %s, %s, %s)
+            """
+    bs = downloadPage(host+'/leagues')
+    topics = []
+    for topic in bs.find('h4', text=re.compile(r"MEN'S HOCKEY")).findNext().findAll('li'):
+        topics.append(topic.a.attrs['href'].split('#')[1])
+    for topic in bs.find('h4', text=re.compile(r"WOMEN'S HOCKEY")).findNext().findAll('li'):
+        topics.append(topic.a.attrs['href'].split('#')[1])
+    for topic in topics[:]:
+        block = bs.find('a', {'name': topic}).findNext('tbody')
+        for column in block.findAll('h4'):
+            for span in column.findNext('ul').findAll('span'):
+                result.append(span.a.attrs['href'])
+                if not con: continue
+                cur.execute(query, (
+                    span.a.attrs['href'], # url
+                    span.a.attrs['href'].split('/')[-1:], # code
+                    topic, # category
+                    column.text, # type
+                    None, # kind
+                    span.text.strip(), # name
+                    re.search(r'flags_s/(\d+)\.png', span.previousSibling.previousSibling.img.attrs['src']).group(1)
+                ))
+    if con: con.commit()
+    return result
+
+def parseSeasonResult(url, con=None):
+    query = """
+                insert into seasonresults (league, season, squad_link, team_id, team_code, team_link, team_name, gp, w, t, l, otw, otl, gf, ga, gd, tp, postseason)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+    bs = downloadPage(url)
+    league_code = re.search(r'/league/(.+?)/', url).group(1)
+    season = re.search(r'/league/.+?/(.+)', url).group(1)
+    if con:
+        cur = con.cursor()
+        cur.execute('delete from seasonresults where league = %s and season = %s', (league_code, season))
+    # table
+    table = bs.find('table', {'class': 'standings'})
+    for tbody in table.findAll('tbody'):
+        for tr in tbody.findAll('tr'):
+            if 'class' in tr.attrs and 'title' in tr.attrs['class']:
+                conference = tr.text.strip().split(':')[0]
+                division = tr.text.strip().split(':')[1]
+            else:
+                cur.execute(query, (
+                    conference,
+                    division,
+                    tr.find('td', {'class': 'team'}).a.attrs['href'],
+                    re.search(r'/team/(\d+)/', tr.find('td', {'class': 'team'}).a.attrs['href']).group(1),
+                    re.search(r'/team/\d+/(.+?)/', tr.find('td', {'class': 'team'}).a.attrs['href']).group(1),
+                    re.search(r'(.+)/', tr.find('td', {'class': 'team'}).a.attrs['href']).group(1),
+                    tr.find('td', {'class': 'team'}).text.strip(),
+                    tr.find('td', {'class': 'gp'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'w'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 't'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'l'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'otw'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'otl'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'gf'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'ga'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'gd'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'tp'}).text.strip().replace('-', '') or None,
+                    tr.find('td', {'class': 'postseason'}).text.strip()
+                ))
+    if con: con.commit()
+
 #url = 'https://www.eliteprospects.com/player/265684/adam-boqvist'
 #adam_boqvist = EPPlayer(url)
 #for i in adam_boqvist.__dict__: print(i, adam_boqvist.__getattribute__(i))
