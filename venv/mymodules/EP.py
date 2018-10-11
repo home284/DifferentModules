@@ -244,8 +244,8 @@ def getLeagues(con=None):
 
 def parseSeasonResult(url, con=None):
     query = """
-                insert into seasonresults (league, season, squad_link, team_id, team_code, team_link, team_name, gp, w, t, l, otw, otl, gf, ga, gd, tp, postseason)
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                insert into seasonresults (league, season, conference, division, squad_link, team_id, team_code, team_link, team_name, gp, w, t, l, otw, otl, gf, ga, gd, tp, postseason)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
     bs = downloadPage(url)
     league_code = re.search(r'/league/(.+?)/', url).group(1)
@@ -262,6 +262,8 @@ def parseSeasonResult(url, con=None):
                 division = tr.text.strip().split(':')[1]
             else:
                 cur.execute(query, (
+                    league_code,
+                    season,
                     conference,
                     division,
                     tr.find('td', {'class': 'team'}).a.attrs['href'],
@@ -282,6 +284,108 @@ def parseSeasonResult(url, con=None):
                     tr.find('td', {'class': 'postseason'}).text.strip()
                 ))
     if con: con.commit()
+
+def getSeasonSquads(url):
+    result = []
+    bs = downloadPage(url)
+    table = bs.find('table', {'class': 'standings'})
+    for tbody in table.findAll('tbody'):
+        for tr in tbody.findAll('tr'):
+            result.append(tr.find('td', {'class': 'team'}).a.attrs['href'])
+    return result
+
+def parseSeasonSquadStat(url, con=None):
+    bs = downloadPage(url+'?tab=stats#players')
+    stat_link = bs.find('table', {'class': 'skater-stats'}).tbody.find('tr', {'class': 'title'}).find('td', {'class': 'player'}).span.a.attrs['href']
+    league_code = re.search(r'/league/(.+?)/', stat_link).group(1)
+    season = re.search(r'/league/.+?/stats/(.+)/*', stat_link).group(1)
+    team_link = re.sub(r'/[^/]*$', '', url)
+    team_id = re.search(r'/team/(\d+)', url).group(1)
+    query = """
+        insert into seasonsquadskaterstat
+        (league,season,team_link,team_id,player_link,player_id,player_name,gp,g,a,tp,pim,pm,playoff_gp,playoff_g,playoff_a,playoff_tp,playoff_pim,playoff_pm)
+        values
+        (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    """
+    if con:
+        cur = con.cursor()
+        cur.execute('delete from seasonsquadskaterstat where league = %s and season = %s and team_id = %s', (league_code, season, team_id))
+    table = bs.find('table', {'class': 'skater-stats'})
+    for tbody in table.findAll('tbody'):
+        for tr in tbody.findAll('tr'):
+            if 'class' not in tr.attrs or ('space' not in tr.attrs['class'] and 'title' not in tr.attrs['class']):
+                if con:
+                    cur.execute(query, (
+                        league_code,
+                        season,
+                        team_link,
+                        team_id,
+                        tr.find('td', {'class': 'player'}).a.attrs['href'],
+                        re.search(r'/player/(\d+)', tr.find('td', {'class': 'player'}).a.attrs['href']).group(1),
+                        tr.find('td', {'class': 'player'}).text.strip(),
+                        tr.find('td', {'class': 'gp'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'g'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'a'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'tp'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'pim'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'pm'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs gp'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs g'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs a'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs tp'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs pim'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs pm'}).text.strip().replace('-', '') or None
+                    ))
+                # result.append(tr.find('td', {'class': 'team'}).a.attrs['href'])
+    query = """
+        insert into seasonsquadgoaliestat
+        (league,season,team_link,team_id,player_link,player_id,player_name,gp,gaa,svp,playoff_gp,playoff_gaa,playoff_svp)
+        values
+        (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    """
+    if con:
+        cur = con.cursor()
+        cur.execute('delete from seasonsquadgoaliestat where league = %s and season = %s and team_id = %s',
+                    (league_code, season, team_id))
+    table = bs.find('table', {'class': 'goalie-stats'})
+    for tbody in table.findAll('tbody'):
+        for tr in tbody.findAll('tr'):
+            if 'class' not in tr.attrs or ('space' not in tr.attrs['class'] and 'title' not in tr.attrs['class']):
+                if con:
+                    cur.execute(query, (
+                        league_code,
+                        season,
+                        team_link,
+                        team_id,
+                        tr.find('td', {'class': 'player'}).a.attrs['href'],
+                        re.search(r'/player/(\d+)', tr.find('td', {'class': 'player'}).a.attrs['href']).group(1),
+                        tr.find('td', {'class': 'player'}).text.strip(),
+                        tr.find('td', {'class': 'gp'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'gaa'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'svp'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs gp'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs gaa'}).text.strip().replace('-', '') or None,
+                        tr.find('td', {'class': 'playoffs svp'}).text.strip().replace('-', '') or None
+                    ))
+    # Jersey numbers
+    bs = downloadPage(url+'#players')
+    query_skater = """
+        update seasonsquadskaterstat set jersey = %s 
+        where league = %s and season = %s and team_id = %s and player_link = %s 
+    """
+    query_goalie = """
+        update seasonsquadgoaliestat set jersey = %s 
+        where league = %s and season = %s and team_id = %s and player_link = %s 
+    """
+    table = bs.find('table', {'class': 'roster'})
+    for tbody in table.findAll('tbody'):
+        for tr in tbody.findAll('tr'):
+            if 'class' not in tr.attrs:
+                if con:
+                    cur.execute(query_skater, (tr.find('td', {'class': 'jersey'}).text.strip().replace('#', ''), league_code,season,team_id,tr.find('td', {'class': 'sorted'}).span.a.attrs['href']))
+                    cur.execute(query_goalie, (tr.find('td', {'class': 'jersey'}).text.strip().replace('#', ''), league_code,season,team_id,tr.find('td', {'class': 'sorted'}).span.a.attrs['href']))
+    if con: con.commit()
+
 
 #url = 'https://www.eliteprospects.com/player/265684/adam-boqvist'
 #adam_boqvist = EPPlayer(url)
