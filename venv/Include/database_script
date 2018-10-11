@@ -56,6 +56,8 @@ truncate table seasonresults;
 create table seasonresults (
 league varchar(50),
 season varchar(50),
+conference varchar(50),
+division varchar(50),
 squad_link varchar(255),
 team_id int,
 team_code varchar(100),
@@ -75,3 +77,49 @@ postseason varchar(100),
 index league_season (league, season)
 );
 select * from seasonresults;
+
+drop table seasonsquadskaterstat;
+create table seasonsquadskaterstat (
+	league varchar(50) not null,
+    season varchar(20) not null,
+    team_link varchar(255) not null,
+    team_id int not null,
+    player_link varchar(255) not null,
+    player_id int not null,
+    player_name varchar(100),
+    jersey smallint(2),
+    gp smallint(2),
+    g smallint(2),
+    a smallint(2),
+    tp smallint(2),
+    pim smallint(2),
+    pm smallint(2),
+    playoff_gp smallint(2),
+    playoff_g smallint(2),
+    playoff_a smallint(2),
+    playoff_tp smallint(2),
+    playoff_pim smallint(2),
+    playoff_pm smallint(2),
+    index league_season_team (league, season, team_id)
+);
+select * from seasonsquadskaterstat;
+
+drop table seasonsquadgoaliestat;
+create table seasonsquadgoaliestat (
+	league varchar(50) not null,
+    season varchar(20) not null,
+    team_link varchar(255) not null,
+    team_id int not null,
+    player_link varchar(255) not null,
+    player_id int not null,
+    player_name varchar(100),
+    jersey smallint(2),
+    gp smallint(2),
+    gaa smallint(2),
+    svp float,
+    playoff_gp smallint(2),
+    playoff_gaa smallint(2),
+    playoff_svp float,
+    index league_season_team (league, season, team_id)
+);
+select * from seasonsquadgoaliestat;
